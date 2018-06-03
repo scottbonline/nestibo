@@ -1,0 +1,7 @@
+{
+    "sensibo_API"   : "1234",
+    "sensibo_room"  : "Loft",
+    "nest_id"       : "1234-567-890",
+    "nest_secret"   : "1234abcd",
+    "nest_cache"    : "nest.json"
+}
