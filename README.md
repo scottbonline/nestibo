@@ -1,9 +1,10 @@
 # nestibo
 Nest Sensibo Integration
 
-Control my Fujitsu heatpumps with Nest thermostats via Sensibo devices
+Control my Fujitsu heatpumps with Nest thermostats via Sensibo devices. Very early stages. Basically just hacking away to prove out some basic functionality. The code reeks of unused and inefficient stanzas. I'll clean that up later
 
-Very early stages. Basically just hacking away to prove out some basic functionality. The code as is well
+Current Features:
+- Changes heatpump to whatever temp I set my Nest to
 
 Required Packages: 
 - https://github.com/Sensibo/sensibo-python-sdk'
