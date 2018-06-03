@@ -1,8 +1,6 @@
 
 from sensibo_client import SensiboClientAPI
 import nest
-
-
 from pprint import pprint
 import sys
 from time import sleep
@@ -24,8 +22,6 @@ try:
 except:
     lgr.error('Invalid creds.json file')
     sys.exit(1)
-
-
 
 
 logging.basicConfig(level=logging.INFO)
@@ -114,76 +110,36 @@ def call_nest():
     loft = structure.thermostats[1]
     return loft
 
+def main():
 
-#call_sensibo()
-nest_info = {}
-prev_nest_info = {}
+    while True:
+        sleep(2)
 
-while True:
-    sleep(2)
-
-    nest_loft = call_nest()
-    sensibo_loft, s_loft_uid = call_sensibo()
-    
-    # Get Nest information
-    nest_info = {
-        'cur_temp': nest_loft.temperature,
-        'target_temp': temp_mangler(nest_loft.target),
-        'mode'    : nest_loft.mode,
-    }
-
-    # Get Sensibo information
-    sensibo_info = {
-        'cur_temp': None, # Sensibo doesn't track the internal thermostat of the heatpump
-        'target_temp': sensibo_loft.pod_ac_state(s_loft_uid)['targetTemperature'],
-        'mode': sensibo_loft.pod_ac_state(s_loft_uid)['mode']
-    }
-    lgr.info('Current Nest info: %s' % nest_info)
-    lgr.info('Current Sensibo info: %s' % sensibo_info)
-
-    # Check for previous info
-    if prev_nest_info.get('target_temp') == None:
-        prev_nest_info = nest_info
-        continue
-
-    # check if anything changed
-    if prev_nest_info:
-        lgr.info('current target is: %s' % nest_info['target_temp'])
-        lgr.info('previous target was: %s' % prev_nest_info['target_temp'])
-
-    if prev_nest_info['target_temp'] != nest_info['target_temp']:
-        lgr.warning('temp changed!')
-    
-    if nest_info['target_temp'] != sensibo_info['target_temp']:
-        lgr.info('Changing Sensibo from %s to %s' % (sensibo_info['target_temp'], nest_info['target_temp']))
-        change_sensibo_target_temp(nest_info['target_temp'])
+        nest_loft = call_nest()
+        sensibo_loft, s_loft_uid = call_sensibo()
         
+        # Get Nest information
+        nest_info = {
+            'cur_temp': nest_loft.temperature,
+            'raw_target_temp': nest_loft.target,
+            'target_temp': temp_mangler(nest_loft.target), # hate this
+            'mode'    : nest_loft.mode,
+        }
 
-    # set current to previous
-    prev_nest_info = nest_info
-
-
-    # Check if Nest temp has changed since last run
-
-
-'''
-Nest info
-# Access advanced device properties:
-    for device in structure.thermostats:
-        print ('        Device: %s' % device.name)
-        print ('        Where: %s' % device.where)
-        print ('            Mode       : %s' % device.mode)
-        print ('            HVAC State : %s' % device.hvac_state)
-        print ('            Fan        : %s' % device.fan)
-        print ('            Fan Timer  : %i' % device.fan_timer)
-        print ('            Temp       : %0.1fC' % device.temperature)
-        print ('            Humidity   : %0.1f%%' % device.humidity)
-        print ('            Target     : %0.1fC' % device.target)
-        print ('            Eco High   : %0.1fC' % device.eco_temperature.high)
-        print ('            Eco Low    : %0.1fC' % device.eco_temperature.low)
-
-        print ('            hvac_emer_heat_state  : %s' % device.is_using_emergency_heat)
-
-        print ('            online                : %s' % device.online)
-'''
-
+        # Get Sensibo information
+        sensibo_info = {
+            'cur_temp': None, # Sensibo doesn't track the internal thermostat of the heatpump
+            'target_temp': sensibo_loft.pod_ac_state(s_loft_uid)['targetTemperature'],
+            'mode': sensibo_loft.pod_ac_state(s_loft_uid)['mode'] # future use
+        }
+        lgr.info('Current Nest info: %s' % nest_info)
+        lgr.info('Current Sensibo info: %s' % sensibo_info)
+        
+        if nest_info['target_temp'] != sensibo_info['target_temp']:
+            lgr.info('Changing Sensibo from %s to %s' % (sensibo_info['target_temp'], nest_info['target_temp']))
+            change_sensibo_target_temp(nest_info['target_temp'])
+        else:
+            lgr.info('No change in temperature')
+        
+if __name__ == "__main__":
+    main()
