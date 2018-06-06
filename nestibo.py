@@ -24,9 +24,21 @@ except:
     sys.exit(1)
 
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("requests").setLevel(logging.WARNING)
-lgr = logging.getLogger(__name__)
+def lager(name):
+    formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+    handler = logging.FileHandler('log.txt', mode='w')
+    handler.setFormatter(formatter)
+    screen_handler = logging.StreamHandler(stream=sys.stdout)
+    screen_handler.setFormatter(formatter)
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    logger.addHandler(screen_handler)
+    logging.getLogger("requests").setLevel(logging.WARNING)
+    return logger
+
+lgr = lager('sensibo')
 
 _VALID_SENSIBO_TEMPS = [86, 84, 82, 81, 79, 77, 75, 73, 72, 70, 68, 66, 64, 63, 61]
 
@@ -113,7 +125,8 @@ def call_nest():
 def main():
 
     while True:
-        sleep(2)
+        lgr.info('Waiting 30 seconds....')
+        sleep(120)
 
         nest_loft = call_nest()
         sensibo_loft, s_loft_uid = call_sensibo()
