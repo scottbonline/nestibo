@@ -7,10 +7,12 @@ from time import sleep
 import json
 import logging
 
+_SLEEP = 5
+_VALID_SENSIBO_TEMPS = [86, 84, 82, 81, 79, 77, 75, 73, 72, 70, 68, 66, 64, 63, 61]
+_CREDENTIALS = 'creds.json'
 
-# load credentials from creds.json
 try:
-    with open('creds.json') as f:
+    with open(_CREDENTIALS) as f:
         creds = json.load(f)
         # Sensibo creds
         _S_API = creds['sensibo_API']
@@ -40,13 +42,18 @@ def lager(name):
 
 lgr = lager('sensibo')
 
-_VALID_SENSIBO_TEMPS = [86, 84, 82, 81, 79, 77, 75, 73, 72, 70, 68, 66, 64, 63, 61]
+
 
 """
 Sensibo section
 """
 def call_sensibo():
-    client = SensiboClientAPI(_S_API)
+    lgr.info('Collecting data via Sensibo API')
+    try:
+        client = SensiboClientAPI(_S_API)
+    except requests.exceptions.RequestException as e:
+        lgr.error(e)
+
     s_loft_uid = client.devices()['Loft']
     # ac_state reference - remove
     ref = {
@@ -63,38 +70,11 @@ def call_sensibo():
     return client, s_loft_uid
 
 
-def change_sensibo_target_temp(new_temp):
-    # check if it validated
-    if new_temp == 1:
-        lgr.error('Invalid temp: %s. Valid entries are %s' % (new_temp, _VALID_SENSIBO_TEMPS))
-        return 1
-    else:
-        client, s_loft_uid = call_sensibo()
-        # get the current ac_state
-        ac_state = client.pod_ac_state(s_loft_uid)
-        # change to target temperature
-        client.pod_change_ac_state(s_loft_uid, ac_state, "targetTemperature", new_temp)
-
-
-def temp_mangler(nest_temp):
-    # Nest supports tons of temperature settings, my heat pump does not :()
-    if nest_temp in _VALID_SENSIBO_TEMPS:
-        return nest_temp
-    if nest_temp >= 61 and nest_temp <= 86:
-        nest_temp = nest_temp - 1
-        return nest_temp
-    if nest_temp < 61:
-        return 61
-    if nest_temp > 86:
-        return 86
-    return 1
-
-
-
 """
 Nest Section
 """
 def call_nest():
+    lgr.info('Collecting data via Nest API')
     napi = nest.Nest(client_id=client_id, client_secret=client_secret, access_token_cache_file=access_token_cache_file)
 
     if napi.authorization_required:
@@ -122,37 +102,59 @@ def call_nest():
     loft = structure.thermostats[1]
     return loft
 
-def main():
+class Nestibo():
+    # Coontrol class for syncing the temp
+    
+    def __init__(self):
+        # get the controller objects
+        self.sensibo_loft, self.s_loft_uid = call_sensibo()
+        self.nest_loft = call_nest()
+        # set some common variables
+        self.nest_target_adj = None
+        self.nest_target = self.nest_loft.target
+        self.sensibo_target = self.sensibo_loft.pod_ac_state(self.s_loft_uid)['targetTemperature']
+        self.sensibo_ac_state = self.sensibo_loft.pod_ac_state(self.s_loft_uid)
 
-    while True:
-        lgr.info('Waiting 30 seconds....')
-        sleep(120)
+    def temp_mangler(self):
+        # Nest supports tons of temperature settings, my heat pump does not :(
+        if self.nest_target in _VALID_SENSIBO_TEMPS:
+            self.nest_target_adj = self.nest_target 
+        elif self.nest_target >= 61 and self.nest_target <= 86:
+            self.nest_target_adj = self.nest_target - 1
+        elif self.nest_target < 61:
+            self.nest_target_adj = 61
+        elif self.nest_target> 86:
+            self.nest_target_adj = 86
+        return self.nest_target_adj
 
-        nest_loft = call_nest()
-        sensibo_loft, s_loft_uid = call_sensibo()
-        
-        # Get Nest information
-        nest_info = {
-            'cur_temp': nest_loft.temperature,
-            'raw_target_temp': nest_loft.target,
-            'target_temp': temp_mangler(nest_loft.target), # hate this
-            'mode'    : nest_loft.mode,
-        }
+    def check_mode(self, controller):
+        if controller == 'nest':
+            print self.nest_loft.mode
 
-        # Get Sensibo information
-        sensibo_info = {
-            'cur_temp': None, # Sensibo doesn't track the internal thermostat of the heatpump
-            'target_temp': sensibo_loft.pod_ac_state(s_loft_uid)['targetTemperature'],
-            'mode': sensibo_loft.pod_ac_state(s_loft_uid)['mode'] # future use
-        }
-        lgr.info('Current Nest info: %s' % nest_info)
-        lgr.info('Current Sensibo info: %s' % sensibo_info)
-        
-        if nest_info['target_temp'] != sensibo_info['target_temp']:
-            lgr.info('Changing Sensibo from %s to %s' % (sensibo_info['target_temp'], nest_info['target_temp']))
-            change_sensibo_target_temp(nest_info['target_temp'])
+    def sync_temp(self):
+        lgr.info('Nest target temp is: %s' % self.nest_target)
+        self.nest_target_adj = self.temp_mangler()
+        lgr.info('Nest adjusted target temp is: %s ' % self.nest_target_adj)
+        lgr.info('Sensibo target temp is: %s' % self.sensibo_target)
+        if self.nest_target_adj != self.sensibo_target:
+            lgr.info('Changing the temperature from %s to %s' % (self.sensibo_target, self.nest_target_adj))
+            self.sensibo_loft.pod_change_ac_state(self.s_loft_uid, self.sensibo_ac_state, "targetTemperature", self.nest_target_adj)
         else:
-            lgr.info('No change in temperature')
+            lgr.info('No change in target temperature detected')
+
+    def get_temp(self):
+        lgr.info('Room temperature according to Nest is: %s' % self.nest_loft.temperature)
+        return self.nest_loft.temperature
+
+def main():
+    
+    while True:
+        lgr.info('Waiting %s seconds....' % _SLEEP)
+        sleep(_SLEEP)
+        foo = Nestibo()
+        foo.sync_temp()
+        foo.get_temp()
+
         
 if __name__ == "__main__":
     main()
