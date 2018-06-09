@@ -43,10 +43,6 @@ def lager(name):
 lgr = lager('sensibo')
 
 
-
-"""
-Sensibo section
-"""
 def call_sensibo():
     lgr.info('Collecting data via Sensibo API')
     try:
@@ -70,12 +66,17 @@ def call_sensibo():
     return client, s_loft_uid
 
 
-"""
-Nest Section
-"""
 def call_nest():
     lgr.info('Collecting data via Nest API')
-    napi = nest.Nest(client_id=client_id, client_secret=client_secret, access_token_cache_file=access_token_cache_file)
+    _retry_throttle = 0
+    while True:
+        sleep(_retry_throttle)
+        try:
+            napi = nest.Nest(client_id=client_id, client_secret=client_secret, access_token_cache_file=access_token_cache_file)
+            break
+        except ConnectionError as e:
+            lgr.error('Unable to connect to Nest API endpoint: %s' % e)
+            retry_throttle += 5
 
     if napi.authorization_required:
         print('Go to ' + napi.authorize_url + ' to authorize, then enter PIN below')
@@ -85,22 +86,18 @@ def call_nest():
             pin = input("PIN: ")
         napi.request_token(pin)
 
+    home = napi.structures[0]
 
-    for structure in napi.structures:
-        continue
-        '''
-        print ('Structure %s' % structure.name)
-        print ('    Away: %s' % structure.away)
-        print ('    Devices:')
-        print type(structure)
+    # I have two thermostats
+    m_bed = home.thermostats[0]
+    loft = home.thermostats[1]
 
-        for device in structure.thermostats:
-            print ('        Device: %s' % device.name)
-            print ('            Temp: %0.1f' % device.temperature)
-'''
-    # Just get the thermostat for the loft
-    loft = structure.thermostats[1]
+    #print loft.name
+    #print loft.temperature
+
+    # Just get the thermostat for the loft for now
     return loft
+
 
 class Nestibo():
     # Coontrol class for syncing the temp
@@ -146,8 +143,9 @@ class Nestibo():
         lgr.info('Room temperature according to Nest is: %s' % self.nest_loft.temperature)
         return self.nest_loft.temperature
 
+
 def main():
-    
+
     while True:
         lgr.info('Waiting %s seconds....' % _SLEEP)
         sleep(_SLEEP)
