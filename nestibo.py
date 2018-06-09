@@ -7,7 +7,7 @@ from time import sleep
 import json
 import logging
 
-_SLEEP = 5
+_SLEEP = 0
 _VALID_SENSIBO_TEMPS = [86, 84, 82, 81, 79, 77, 75, 73, 72, 70, 68, 66, 64, 63, 61]
 _CREDENTIALS = 'creds.json'
 
@@ -29,13 +29,13 @@ except:
 def lager(name):
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
-    handler = logging.FileHandler('log.txt', mode='w')
-    handler.setFormatter(formatter)
+    #handler = logging.FileHandler('log.txt', mode='w')
+    #handler.setFormatter(formatter)
     screen_handler = logging.StreamHandler(stream=sys.stdout)
     screen_handler.setFormatter(formatter)
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
-    logger.addHandler(handler)
+    #logger.addHandler(handler)
     logger.addHandler(screen_handler)
     logging.getLogger("requests").setLevel(logging.WARNING)
     return logger
@@ -69,14 +69,10 @@ def call_sensibo():
 def call_nest():
     lgr.info('Collecting data via Nest API')
     _retry_throttle = 0
-    while True:
-        sleep(_retry_throttle)
-        try:
-            napi = nest.Nest(client_id=client_id, client_secret=client_secret, access_token_cache_file=access_token_cache_file)
-            break
-        except ConnectionError as e:
-            lgr.error('Unable to connect to Nest API endpoint: %s' % e)
-            retry_throttle += 5
+
+
+    napi = nest.Nest(client_id=client_id, client_secret=client_secret, access_token_cache_file=access_token_cache_file)
+
 
     if napi.authorization_required:
         print('Go to ' + napi.authorize_url + ' to authorize, then enter PIN below')
@@ -144,7 +140,7 @@ class Nestibo():
         return self.nest_loft.temperature
 
 
-def main():
+def main(event, context):
 
     while True:
         lgr.info('Waiting %s seconds....' % _SLEEP)
@@ -155,4 +151,4 @@ def main():
 
         
 if __name__ == "__main__":
-    main()
+    main(event, context)
