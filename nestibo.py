@@ -7,7 +7,7 @@ from time import sleep
 import json
 import logging
 
-_SLEEP = 5
+_SLEEP = 300
 _VALID_SENSIBO_TEMPS = [86, 84, 82, 81, 79, 77, 75, 73, 72, 70, 68, 66, 64, 63, 61]
 _CREDENTIALS = 'creds.json'
 
@@ -45,10 +45,15 @@ lgr = lager('sensibo')
 
 def call_sensibo():
     lgr.info('Collecting data via Sensibo API')
-    try:
-        client = SensiboClientAPI(_S_API)
-    except requests.exceptions.RequestException as e:
-        lgr.error(e)
+    _retry_throttle = 0
+    while True:
+        sleep(_retry_throttle)
+        try:
+            client = SensiboClientAPI(_S_API)
+            break
+        except Exception as e:
+            lgr.error(e)
+            _retry_throttle += 5
 
     s_loft_uid = client.devices()['Loft']
     # ac_state reference - remove
@@ -73,20 +78,23 @@ def call_nest():
         sleep(_retry_throttle)
         try:
             napi = nest.Nest(client_id=client_id, client_secret=client_secret, access_token_cache_file=access_token_cache_file)
+
+            if napi.authorization_required:
+                print('Go to ' + napi.authorize_url + ' to authorize, then enter PIN below')
+                if sys.version_info[0] < 3:
+                    pin = raw_input("PIN: ")
+                else:
+                    pin = input("PIN: ")
+                napi.request_token(pin)
+
+            home = napi.structures[0]
             break
-        except ConnectionError as e:
+        except IndexError:
+            lgr.error('Index error')
+            _retry_throttle += 5
+        except Exception as e:
             lgr.error('Unable to connect to Nest API endpoint: %s' % e)
-            retry_throttle += 5
-
-    if napi.authorization_required:
-        print('Go to ' + napi.authorize_url + ' to authorize, then enter PIN below')
-        if sys.version_info[0] < 3:
-            pin = raw_input("PIN: ")
-        else:
-            pin = input("PIN: ")
-        napi.request_token(pin)
-
-    home = napi.structures[0]
+            _retry_throttle += 5
 
     # I have two thermostats
     m_bed = home.thermostats[0]
