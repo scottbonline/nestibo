@@ -50,12 +50,13 @@ def call_sensibo():
         sleep(_retry_throttle)
         try:
             client = SensiboClientAPI(_S_API)
+            s_loft_uid = client.devices()['Loft']
             break
         except Exception as e:
             lgr.error(e)
+            lgr.warning('Retry call_sensibo with throttle of: %s' % _retry_throttle)
             _retry_throttle += 5
 
-    s_loft_uid = client.devices()['Loft']
     # ac_state reference - remove
     ref = {
         u'on': True, 
@@ -92,9 +93,11 @@ def call_nest():
         except IndexError:
             lgr.error('Index error')
             _retry_throttle += 5
+            lgr.warning('Retry call_nest with throttle of: %s' % _retry_throttle)
         except Exception as e:
             lgr.error('Unable to connect to Nest API endpoint: %s' % e)
             _retry_throttle += 5
+            lgr.warning('Retry call_nest with throttle of: %s' % _retry_throttle)
 
     # I have two thermostats
     m_bed = home.thermostats[0]
